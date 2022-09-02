@@ -206,7 +206,7 @@ void DeployOne(int nodeID,
 
   char copy_config[1024];
   snprintf(copy_config, sizeof(copy_config),
-           "scp -rp deploy-run.conf %s:db3/deploy-run.conf",
+           "scp -rp deploy-run.conf %s:calvin/deploy-run.conf",
            node->host.c_str());
   system(copy_config);
 

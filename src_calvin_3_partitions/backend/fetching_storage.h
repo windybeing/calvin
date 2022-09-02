@@ -53,8 +53,8 @@ class FetchingStorage : public Storage {
     }
   };
   Latch* LatchFor(const Key &key);
-  static void PrefetchCompletionHandler(sigval_t sigval);
-  static void UnfetchCompletionHandler(sigval_t sigval);
+  static void PrefetchCompletionHandler(__sigval_t sigval);
+  static void UnfetchCompletionHandler(__sigval_t sigval);
   static void GetKey(int fd, Key* key);
 
  private:
