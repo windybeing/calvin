@@ -42,7 +42,7 @@ class TPCC : public Application {
 
   // Load generator for a new transaction
   virtual TxnProto* NewTxn(int64 txn_id, int txn_type, string args,
-                           Configuration* config) const;
+                           Configuration* config, int r_pct) const;
 
   // The key converter takes a valid key (string) and converts it to an id
   // for the checkpoint to use

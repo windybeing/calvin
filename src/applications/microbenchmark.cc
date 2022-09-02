@@ -116,7 +116,7 @@ TxnProto* Microbenchmark::MicroTxnMP(int64 txn_id, int part1, int part2) {
 // The load generator can be called externally to return a transaction proto
 // containing a new type of transaction.
 TxnProto* Microbenchmark::NewTxn(int64 txn_id, int txn_type,
-                                 string args, Configuration* config) const {
+                                 string args, Configuration* config, int r_pct) const {
   return NULL;
 }
 

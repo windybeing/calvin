@@ -72,29 +72,30 @@ class TClient : public Client {
     TPCCArgs args;
 
     args.set_system_time(GetTime());
-    if (rand() % 100 < percent_mp_)
-      args.set_multipartition(true);
-    else
-      args.set_multipartition(false);
+    // if (rand() % 100 < percent_mp_)
+    //   args.set_multipartition(true);
+    // else
+    args.set_multipartition(false);
 
     string args_string;
     args.SerializeToString(&args_string);
+
 
     // New order txn
    int random_txn_type = rand() % 100;
     // New order txn
     if (random_txn_type < 45)  {
-      *txn = tpcc.NewTxn(txn_id, TPCC::NEW_ORDER, args_string, config_);
+      *txn = tpcc.NewTxn(txn_id, TPCC::NEW_ORDER, args_string, config_, percent_mp_);
     } else if(random_txn_type < 88) {
-      *txn = tpcc.NewTxn(txn_id, TPCC::PAYMENT, args_string, config_);
+      *txn = tpcc.NewTxn(txn_id, TPCC::PAYMENT, args_string, config_, percent_mp_ == 0 ? 0 : 15);
     } else if(random_txn_type < 92) {
-      *txn = tpcc.NewTxn(txn_id, TPCC::ORDER_STATUS, args_string, config_);
+      *txn = tpcc.NewTxn(txn_id, TPCC::ORDER_STATUS, args_string, config_, 0);
       args.set_multipartition(false);
     } else if(random_txn_type < 96){
-      *txn = tpcc.NewTxn(txn_id, TPCC::DELIVERY, args_string, config_);
+      *txn = tpcc.NewTxn(txn_id, TPCC::DELIVERY, args_string, config_, 0);
       args.set_multipartition(false);
     } else {
-      *txn = tpcc.NewTxn(txn_id, TPCC::STOCK_LEVEL, args_string, config_);
+      *txn = tpcc.NewTxn(txn_id, TPCC::STOCK_LEVEL, args_string, config_, 0);
       args.set_multipartition(false);
     }
 

@@ -26,7 +26,7 @@ void TPCC::SetItem(Key key, Value* value) const { ItemList[key] = value; }
 // The load generator can be called externally to return a
 // transaction proto containing a new type of transaction.
 TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
-                       Configuration* config) const {
+                       Configuration* config, int r_pct) const {
   // Create the new transaction object
   TxnProto* txn = new TxnProto();
 
@@ -40,14 +40,14 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
   // Parse out the arguments to the transaction
   TPCCArgs* txn_args = new TPCCArgs();
   assert(txn_args->ParseFromString(args));
-  bool mp = txn_args->multipartition();
-  int remote_node;
-  if (mp) {
-    do {
-      remote_node = rand() % config->all_nodes.size();
-    } while (config->all_nodes.size() > 1 &&
-             remote_node == config->this_node_id);
-  }
+  // bool mp = txn_args->multipartition();
+  // int remote_node;
+  // if (mp) {
+  //   do {
+  //     remote_node = rand() % config->all_nodes.size();
+  //   } while (config->all_nodes.size() > 1 &&
+  //            remote_node == config->this_node_id);
+  // }
 
   // Create an arg list
   TPCCArgs* tpcc_args = new TPCCArgs();
@@ -131,7 +131,7 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
                  "%s", warehouse_key);
 
         // We only do ~1% remote transactions
-        if (mp) {
+        if (rand() % 100 < r_pct) {
           txn->set_multipartition(true);
 
           // We loop until we actually get a remote one
@@ -142,8 +142,8 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
             snprintf(remote_warehouse_key, sizeof(remote_warehouse_key),
                      "w%d", remote_warehouse_id);
           } while (config->all_nodes.size() > 1 &&
-                   config->LookupPartition(remote_warehouse_key) !=
-                     remote_node);
+                   config->LookupPartition(remote_warehouse_key) ==
+                     config->this_node_id);
         }
 
         // Determine if we should add it to read set to avoid duplicates
@@ -213,7 +213,7 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
       txn->add_write_set(history_key);
 
       // Next, we find the customer as a local one
-      if (WAREHOUSES_PER_NODE * config->all_nodes.size() == 1 || !mp) {
+      if (WAREHOUSES_PER_NODE * config->all_nodes.size() == 1 || !(rand() % 100 < r_pct)) {
         customer_id = rand() % CUSTOMERS_PER_DISTRICT;
         snprintf(customer_key, sizeof(customer_key),
                  "w%dd%dc%d",
@@ -237,7 +237,7 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
           snprintf(customer_key, sizeof(customer_key), "w%dd%dc%d",
                    remote_warehouse_id, remote_district_id, remote_customer_id);
         } while (config->all_nodes.size() > 1 &&
-                 config->LookupPartition(remote_warehouse_key) != remote_node);
+                 config->LookupPartition(remote_warehouse_key) == config->this_node_id);
       }
 
       // We only do secondary keying ~60% of the time
