@@ -193,7 +193,7 @@ void StartZookeeper(const string& zookeeper_config_file) {
   for (unsigned int i = 0; i< zookeepers.size(); i++) {
     // Generate the ssh command.
     string ssh_command = "ssh " + zookeepers[i] +
-                         " /tmp/kr358/zookeeper/zookeeper-3.3.3/" +
+                         " /home/ubuntu/calvin/ext/zookeeper-3.4.6/" +
                          "bin/zkServer.sh start > zookeeper_log &";
     // Run the ssh command.
     system(ssh_command.c_str());
@@ -223,14 +223,14 @@ void StopZookeeper(const string& zookeeper_config_file) {
     }
   }
   ssh_command = "ssh " + zookeepers[0] +
-                " /tmp/kr358/zookeeper/zookeeper-3.3.3/bin/zkCli.sh -server "
+                " /home/ubuntu/calvin/ext/zookeeper-3.4.6/bin/zkCli.sh -server "
                 + zookeepers[0] + ":" + port + " delete /root > zookeeper_log";
   system(ssh_command.c_str());
   sleep(2);
   for (unsigned int i = 0; i< zookeepers.size(); i++) {
     // Generate the ssh command.
-    ssh_command = "ssh " + zookeepers[i] + " /tmp/kr358/zookeeper/"
-                  + "zookeeper-3.3.3/bin/zkServer.sh stop > zookeeper_log &";
+    ssh_command = "ssh " + zookeepers[i] + " /home/ubuntu/calvin/ext/"
+                  + "zookeeper-3.4.6/bin/zkServer.sh stop > zookeeper_log &";
     system(ssh_command.c_str());
   }
 }

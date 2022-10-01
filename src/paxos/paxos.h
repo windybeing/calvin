@@ -75,4 +75,8 @@ class Paxos {
   // at the end of zoo_acreate function.
   static void acreate_completion(int rc, const char *name, const void * data);
 };
+
+void StartZookeeper(const string& zookeeper_config_file);
+void StopZookeeper(const string& zookeeper_config_file);
+
 #endif  // _DB_PAXOS_PAXOS_H_
