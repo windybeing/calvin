@@ -191,6 +191,7 @@ DeterministicScheduler::~DeterministicScheduler() {
 // Returns ptr to heap-allocated
 unordered_map<int, MessageProto*> batches;
 MessageProto* GetBatch(int batch_id, Connection* connection) {
+  // printf("GetBatch %d %lu\n", batch_id, batches.size());
   if (batches.count(batch_id) > 0) {
     // Requested batch has already been received.
     MessageProto* batch = batches[batch_id];
@@ -242,7 +243,6 @@ void* DeterministicScheduler::LockManagerThread(void* arg) {
       // Have we run out of txns in our batch? Let's get some new ones.
       if (batch_message == NULL) {
         batch_message = GetBatch(batch_number, scheduler->batch_connection_);
-
       // Done with current batch, get next.
       } else if (batch_offset >= batch_message->data_size()) {
         batch_offset = 0;
@@ -280,7 +280,7 @@ void* DeterministicScheduler::LockManagerThread(void* arg) {
     }
 
     // Report throughput.
-    if (GetTime() > time + 1) {
+    if (GetTime() > time + 5) {
       double total_time = GetTime() - time;
       std::cout << "Completed " << (static_cast<double>(txns) / total_time)
                 << " txns/sec, "

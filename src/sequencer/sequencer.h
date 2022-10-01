@@ -11,7 +11,7 @@
 #include <string>
 #include <queue>
 
-//#define PAXOS
+// #define PAXOS
 //#define PREFETCHING
 #define COLD_CUTOFF 990000
 

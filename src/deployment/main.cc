@@ -18,6 +18,9 @@
 #include "scheduler/deterministic_scheduler.h"
 #include "sequencer/sequencer.h"
 #include "proto/tpcc_args.pb.h"
+#ifdef PAXOS
+# include "paxos/paxos.h"
+#endif
 
 #define HOT 10000
 
@@ -84,19 +87,24 @@ class TClient : public Client {
     // New order txn
    int random_txn_type = rand() % 100;
     // New order txn
-    if (random_txn_type < 45)  {
+    // if (random_txn_type < 45)  {
+    //   *txn = tpcc.NewTxn(txn_id, TPCC::NEW_ORDER, args_string, config_, percent_mp_);
+    // } else if(random_txn_type < 88) {
+    //   *txn = tpcc.NewTxn(txn_id, TPCC::PAYMENT, args_string, config_, percent_mp_ == 0 ? 0 : 15);
+    // } else if(random_txn_type < 92) {
+    //   *txn = tpcc.NewTxn(txn_id, TPCC::ORDER_STATUS, args_string, config_, 0);
+    //   args.set_multipartition(false);
+    // } else if(random_txn_type < 96){
+    //   *txn = tpcc.NewTxn(txn_id, TPCC::DELIVERY, args_string, config_, 0);
+    //   args.set_multipartition(false);
+    // } else {
+    //   *txn = tpcc.NewTxn(txn_id, TPCC::STOCK_LEVEL, args_string, config_, 0);
+    //   args.set_multipartition(false);
+    // }
+    if (random_txn_type < 50)  {
       *txn = tpcc.NewTxn(txn_id, TPCC::NEW_ORDER, args_string, config_, percent_mp_);
-    } else if(random_txn_type < 88) {
-      *txn = tpcc.NewTxn(txn_id, TPCC::PAYMENT, args_string, config_, percent_mp_ == 0 ? 0 : 15);
-    } else if(random_txn_type < 92) {
-      *txn = tpcc.NewTxn(txn_id, TPCC::ORDER_STATUS, args_string, config_, 0);
-      args.set_multipartition(false);
-    } else if(random_txn_type < 96){
-      *txn = tpcc.NewTxn(txn_id, TPCC::DELIVERY, args_string, config_, 0);
-      args.set_multipartition(false);
     } else {
-      *txn = tpcc.NewTxn(txn_id, TPCC::STOCK_LEVEL, args_string, config_, 0);
-      args.set_multipartition(false);
+      *txn = tpcc.NewTxn(txn_id, TPCC::PAYMENT, args_string, config_, percent_mp_ == 0 ? 0 : 15);
     }
 
   }
@@ -107,9 +115,9 @@ class TClient : public Client {
 };
 
 void stop(int sig) {
-// #ifdef PAXOS
-//  StopZookeeper(ZOOKEEPER_CONF);
-// #endif
+#ifdef PAXOS
+ StopZookeeper(ZOOKEEPER_CONF);
+#endif
   exit(sig);
 }
 
@@ -138,9 +146,9 @@ int main(int argc, char** argv) {
       reinterpret_cast<Client*>(new MClient(&config, atoi(argv[3]))) :
       reinterpret_cast<Client*>(new TClient(&config, atoi(argv[3])));
 
-// #ifdef PAXOS
-//  StartZookeeper(ZOOKEEPER_CONF);
-// #endif
+#ifdef PAXOS
+ StartZookeeper(ZOOKEEPER_CONF);
+#endif
 pthread_mutex_init(&mutex_, NULL);
 pthread_mutex_init(&mutex_for_item, NULL);
 involed_customers = new vector<Key>;
