@@ -8,6 +8,7 @@
 #include <cstdlib>
 
 #include "applications/microbenchmark.h"
+#include "applications/ycsb.h"
 #include "applications/tpcc.h"
 #include "common/configuration.h"
 #include "common/connection.h"
@@ -41,26 +42,30 @@ pthread_mutex_t mutex_for_item;
 class MClient : public Client {
  public:
   MClient(Configuration* config, int mp)
-      : microbenchmark(config->all_nodes.size(), HOT), config_(config),
+      : microbenchmark(config->all_nodes.size(), HOT), ycsb(config->all_nodes.size(), HOT), config_(config),
         percent_mp_(mp) {
   }
   virtual ~MClient() {}
   virtual void GetTxn(TxnProto** txn, int txn_id) {
+    // *txn = ycsb.ZipfianTxn(txn_id);
     if (config_->all_nodes.size() > 1 && rand() % 100 < percent_mp_) {
       // Multipartition txn.
       int other;
       do {
         other = rand() % config_->all_nodes.size();
       } while (other == config_->this_node_id);
-      *txn = microbenchmark.MicroTxnMP(txn_id, config_->this_node_id, other);
+      // *txn = microbenchmark.MicroTxnMP(txn_id, config_->this_node_id, other);
+        *txn = ycsb.MicroTxnMP(txn_id, config_->this_node_id, other);
     } else {
       // Single-partition txn.
-      *txn = microbenchmark.MicroTxnSP(txn_id, config_->this_node_id);
+      // *txn = microbenchmark.MicroTxnSP(txn_id, config_->this_node_id);
+      *txn = ycsb.MicroTxnSP(txn_id, config_->this_node_id);
     }
   }
 
  private:
   Microbenchmark microbenchmark;
+  YCSB ycsb;
   Configuration* config_;
   int percent_mp_;
 };
@@ -141,6 +146,7 @@ int main(int argc, char** argv) {
   // Build connection context and start multiplexer thread running.
   ConnectionMultiplexer multiplexer(&config);
 
+  // zipfianGenerator = new ZipfianGenerator(0, config.all_nodes.size() * YCSB::kDBSize - 1, 0.1);
   // Artificial loadgen clients.
   Client* client = (argv[2][0] == 'm') ?
       reinterpret_cast<Client*>(new MClient(&config, atoi(argv[3]))) :
@@ -161,7 +167,8 @@ involed_customers = new vector<Key>;
   }
 storage->Initmutex();
   if (argv[2][0] == 'm') {
-    Microbenchmark(config.all_nodes.size(), HOT).InitializeStorage(storage, &config);
+    // Microbenchmark(config.all_nodes.size(), HOT).InitializeStorage(storage, &config);
+    YCSB(config.all_nodes.size(), HOT).InitializeStorage(storage, &config);
   } else {
     TPCC().InitializeStorage(storage, &config);
   }
@@ -175,7 +182,7 @@ storage->Initmutex();
     DeterministicScheduler scheduler(&config,
                                      multiplexer.NewConnection("scheduler_"),
                                      storage,
-                                     new Microbenchmark(config.all_nodes.size(), HOT));
+                                     new YCSB(config.all_nodes.size(), HOT));
   } else {
     DeterministicScheduler scheduler(&config,
                                      multiplexer.NewConnection("scheduler_"),
