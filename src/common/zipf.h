@@ -126,6 +126,5 @@ class ZipfianGenerator {
     std::mt19937 gen;
     std::uniform_real_distribution<> dis;
 };
-static ZipfianGenerator* zipfianGenerator;
 
 #endif

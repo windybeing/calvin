@@ -400,7 +400,7 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
 
 // The execute function takes a single transaction proto and executes it based
 // on what the type of the transaction is.
-int TPCC::Execute(TxnProto* txn, StorageManager* storage) const {
+int TPCC::Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const {
   switch (txn->txn_type()) {
     // Initialize
     case INITIALIZE:

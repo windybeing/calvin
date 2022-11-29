@@ -37,7 +37,7 @@ class Application {
   static int CheckpointID(Key key);
 
   // Execute a transaction's application logic given the input 'txn'.
-  virtual int Execute(TxnProto* txn, StorageManager* storage) const = 0;
+  virtual int Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const = 0;
 
   // Storage initialization method.
   virtual void InitializeStorage(Storage* storage,

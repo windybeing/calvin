@@ -42,7 +42,11 @@ class Microbenchmark : public Application {
   int nparts;
   int hot_records;
   static const int kRWSetSize = 10;  // MUST BE EVEN
+  #ifdef YCSB10
+  static const int kDBSize = 23000000;
+  #else
   static const int kDBSize = 1000000;
+  #endif
 
   virtual void InitializeStorage(Storage* storage, Configuration* conf) const;
 

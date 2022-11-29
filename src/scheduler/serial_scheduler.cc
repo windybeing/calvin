@@ -55,7 +55,7 @@ void SerialScheduler::Run(const Application& application) {
             if (connection_->GetMessage(&message))
               manager->HandleReadResult(message);
           }
-          application.Execute(&txn, manager);
+          application.Execute(&txn, manager, configuration_);
         }
         // Clean up the mess.
         delete manager;

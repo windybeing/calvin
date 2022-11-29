@@ -81,7 +81,7 @@ class TPCC : public Application {
   }
 
   // Simple execution of a transaction using a given storage
-  virtual int Execute(TxnProto* txn, StorageManager* storage) const;
+  virtual int Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const;
 
 /* TODO(Thad): Uncomment once testing friend class exists
  private: */

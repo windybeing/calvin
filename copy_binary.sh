@@ -18,3 +18,15 @@ scp -r bin 172.31.21.26:~/calvin
 scp -r bin 172.31.23.216:~/calvin
 scp -r bin 172.31.30.114:~/calvin
 scp -r bin 172.31.20.192:~/calvin
+scp -r bin 172.31.23.157:~/calvin
+scp -r bin 172.31.20.66:~/calvin
+# scp -r bin 172.31.22.83:~/calvin
+# scp -r bin 172.31.17.112:~/calvin
+# scp -r bin 172.31.25.8:~/calvin
+# scp -r bin 172.31.17.9:~/calvin
+# scp -r bin 172.31.18.37:~/calvin
+# scp -r bin 172.31.30.182:~/calvin
+# scp -r bin 172.31.20.59:~/calvin
+# scp -r bin 172.31.16.12:~/calvin
+# scp -r bin 172.31.28.89:~/calvin
+# scp -r bin 172.31.23.27:~/calvin

@@ -4,6 +4,7 @@
 #include "backend/storage_manager.h"
 
 #include <ucontext.h>
+#include <iostream>
 
 #include "backend/storage.h"
 #include "common/configuration.h"
@@ -81,8 +82,28 @@ void StorageManager::HandleReadResult(const MessageProto& message) {
 }
 
 bool StorageManager::ReadyToExecute() {
-  return static_cast<int>(objects_.size()) ==
-         txn_->read_set_size() + txn_->read_write_set_size();
+#ifndef YCSB10
+    return static_cast<int>(objects_.size()) == txn_->read_set_size() + txn_->read_write_set_size();
+#else
+  int cnt = 0;
+  for (int i = 0; i < txn_->writers_size(); i++) {
+    if (txn_->writers(i) == configuration_->this_node_id)
+      writer = true;
+  }
+  if (writer) {
+    return static_cast<int>(objects_.size()) == txn_->read_set_size() + txn_->read_write_set_size();
+  }
+  // std::cout << "object size " << objects_.size() << " read_size " << txn_->read_set_size() + txn_->read_write_set_size() << std::endl;
+  for (int i = 0; i < txn_->read_set_size(); ++i) {
+    if (configuration_->LookupPartition(txn_->read_set(i)) == configuration_->this_node_id)
+      ++cnt;
+  }
+  for (int i = 0; i < txn_->read_write_set_size(); ++i) {
+    if (configuration_->LookupPartition(txn_->read_write_set(i)) == configuration_->this_node_id)
+      ++cnt;
+  }
+  return static_cast<int>(objects_.size()) == cnt;
+#endif
 }
 
 StorageManager::~StorageManager() {

@@ -11,10 +11,11 @@
 #include <string>
 
 #include "applications/application.h"
+#include "common/zipf.h"
 
 using std::set;
 using std::string;
-
+extern ZipfianGenerator *zipfianGenerator;
 class YCSB : public Application {
  public:
   enum TxnType {
@@ -32,9 +33,10 @@ class YCSB : public Application {
 
   virtual TxnProto* NewTxn(int64 txn_id, int txn_type, string args,
                            Configuration* config = NULL, int r_pct = 0) const;
-  virtual int Execute(TxnProto* txn, StorageManager* storage) const;
+  virtual int Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const;
 
   TxnProto* InitializeTxn();
+  TxnProto* ZipfianTxn(int64 txn_id);
   TxnProto* MicroTxnSP(int64 txn_id, int part);
   TxnProto* MicroTxnMP(int64 txn_id, int part1, int part2);
 

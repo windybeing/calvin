@@ -49,6 +49,44 @@ TxnProto* YCSB::InitializeTxn() {
   return txn;
 }
 
+TxnProto* YCSB::ZipfianTxn(int64 txn_id) {
+  TxnProto* txn = new TxnProto();
+  txn->set_txn_id(txn_id);
+  txn->set_txn_type(MICROTXN_SP);
+  int key[kRWSetSize];
+  bool update[kRWSetSize];
+  set<int> keys;
+  for (int i = 0; i < kRWSetSize; i++) {
+    int k;
+    do {
+      k = zipfianGenerator->nextValue();
+      keys.insert(k);
+    } while (keys.size() != (size_t)i + 1);
+    key[i] = k;
+  }
+  // key[0] = 0; key[1] = 1;
+  for(int i=0; i< kRWSetSize; i++){
+    update[i] = false;
+  }
+  uint writeKey = kRWSetSize / 2;
+  while(writeKey > 0){
+    int w = rand() % kRWSetSize;
+    if(!update[w]){
+      update[w] = true;
+      writeKey--;
+    }
+  }
+  // update[0] = true;
+  for (int i = 0; i < kRWSetSize; ++i) {
+    if (update[i]) {
+      txn->add_write_set(IntToString(key[i]));
+    } else {
+      txn->add_read_set(IntToString(key[i]));
+    }
+  }
+  return txn;
+}
+
 // Create a non-dependent single-partition transaction
 TxnProto* YCSB::MicroTxnSP(int64 txn_id, int part) {
   // Create the new transaction object
@@ -120,13 +158,26 @@ TxnProto* YCSB::NewTxn(int64 txn_id, int txn_type,
   return NULL;
 }
 
-int YCSB::Execute(TxnProto* txn, StorageManager* storage) const {
+int YCSB::Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const {
   // Read all elements of 'txn->read_set()', add one to each, write them all
   // back out.
-
+  #ifdef YCSB10
+  for (int i = 0; i < kRWSetSize / 2; i++) {
+    Value* val;
+    
+    if (config->LookupPartition(txn->read_set(i)) == config->this_node_id)
+      val = storage->ReadObject(txn->read_set(i));
+    
+    if (config->LookupPartition(txn->write_set(i)) == config->this_node_id) {
+      // val = storage->ReadObject(txn->write_set(i));
+      // *val = IntToString(StringToInt(*val) + 1);
+      storage->PutObject(txn->write_set(i), val);
+    }
+  #else
   for (int i = 0; i < kRWSetSize; i++) {
     Value* val = storage->ReadObject(txn->read_write_set(i));
     *val = IntToString(StringToInt(*val) + 1);
+  #endif
     // Not necessary since storage already has a pointer to val.
     //   storage->PutObject(txn->read_write_set(i), val);
 

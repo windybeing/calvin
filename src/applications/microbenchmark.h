@@ -32,7 +32,7 @@ class Microbenchmark : public Application {
 
   virtual TxnProto* NewTxn(int64 txn_id, int txn_type, string args,
                            Configuration* config = NULL, int r_pct = 0) const;
-  virtual int Execute(TxnProto* txn, StorageManager* storage) const;
+  virtual int Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const;
 
   TxnProto* InitializeTxn();
   TxnProto* MicroTxnSP(int64 txn_id, int part);

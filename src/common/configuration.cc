@@ -14,6 +14,7 @@
 #include <string>
 
 #include "common/utils.h"
+#include "applications/ycsb.h"
 
 using std::string;
 
@@ -28,7 +29,11 @@ int Configuration::LookupPartition(const Key& key) const {
   if (key.find("w") == 0)  // TPCC
     return OffsetStringToInt(key, 1) % static_cast<int>(all_nodes.size());
   else
+  #ifdef YCSB10
+    return StringToInt(key) / YCSB::kDBSize;
+  #else
     return StringToInt(key) % static_cast<int>(all_nodes.size());
+  #endif
 }
 
 bool Configuration::WriteToFile(const string& filename) const {

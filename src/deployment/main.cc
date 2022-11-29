@@ -37,7 +37,7 @@ vector<Key>* involed_customers;
 
 pthread_mutex_t mutex_;
 pthread_mutex_t mutex_for_item;
-
+ZipfianGenerator *zipfianGenerator;
 // Microbenchmark load generation client.
 class MClient : public Client {
  public:
@@ -47,20 +47,20 @@ class MClient : public Client {
   }
   virtual ~MClient() {}
   virtual void GetTxn(TxnProto** txn, int txn_id) {
-    // *txn = ycsb.ZipfianTxn(txn_id);
-    if (config_->all_nodes.size() > 1 && rand() % 100 < percent_mp_) {
-      // Multipartition txn.
-      int other;
-      do {
-        other = rand() % config_->all_nodes.size();
-      } while (other == config_->this_node_id);
-      // *txn = microbenchmark.MicroTxnMP(txn_id, config_->this_node_id, other);
-        *txn = ycsb.MicroTxnMP(txn_id, config_->this_node_id, other);
-    } else {
-      // Single-partition txn.
-      // *txn = microbenchmark.MicroTxnSP(txn_id, config_->this_node_id);
-      *txn = ycsb.MicroTxnSP(txn_id, config_->this_node_id);
-    }
+    *txn = ycsb.ZipfianTxn(txn_id);
+    // if (config_->all_nodes.size() > 1 && rand() % 100 < percent_mp_) {
+    //   // Multipartition txn.
+    //   int other;
+    //   do {
+    //     other = rand() % config_->all_nodes.size();
+    //   } while (other == config_->this_node_id);
+    //   // *txn = microbenchmark.MicroTxnMP(txn_id, config_->this_node_id, other);
+    //     *txn = ycsb.MicroTxnMP(txn_id, config_->this_node_id, other);
+    // } else {
+    //   // Single-partition txn.
+    //   // *txn = microbenchmark.MicroTxnSP(txn_id, config_->this_node_id);
+      // *txn = ycsb.MicroTxnSP(txn_id, config_->this_node_id);
+    // }
   }
 
  private:
@@ -128,7 +128,7 @@ void stop(int sig) {
 
 int main(int argc, char** argv) {
   // TODO(alex): Better arg checking.
-  if (argc < 4) {
+  if (argc < 5) {
     fprintf(stderr, "Usage: %s <node-id> <m[icro]|t[pcc]> <percent_mp>\n",
             argv[0]);
     exit(1);
@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
   // Build connection context and start multiplexer thread running.
   ConnectionMultiplexer multiplexer(&config);
 
-  // zipfianGenerator = new ZipfianGenerator(0, config.all_nodes.size() * YCSB::kDBSize - 1, 0.1);
+  zipfianGenerator = new ZipfianGenerator(0, config.all_nodes.size() * YCSB::kDBSize - 1, StringToDouble(argv[4]));
   // Artificial loadgen clients.
   Client* client = (argv[2][0] == 'm') ?
       reinterpret_cast<Client*>(new MClient(&config, atoi(argv[3]))) :

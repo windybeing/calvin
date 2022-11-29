@@ -120,7 +120,7 @@ TxnProto* Microbenchmark::NewTxn(int64 txn_id, int txn_type,
   return NULL;
 }
 
-int Microbenchmark::Execute(TxnProto* txn, StorageManager* storage) const {
+int Microbenchmark::Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const {
   // Read all elements of 'txn->read_set()', add one to each, write them all
   // back out.
 

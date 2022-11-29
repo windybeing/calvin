@@ -143,7 +143,7 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
       if (manager->ReadyToExecute()) {
         // Execute and clean up.
         TxnProto* txn = manager->txn_;
-        scheduler->application_->Execute(txn, manager);
+        scheduler->application_->Execute(txn, manager, scheduler->configuration_);
         delete manager;
 
         scheduler->thread_connections_[thread]->
@@ -167,7 +167,7 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
           // Writes occur at this node.
           if (manager->ReadyToExecute()) {
             // No remote reads. Execute and clean up.
-            scheduler->application_->Execute(txn, manager);
+            scheduler->application_->Execute(txn, manager, scheduler->configuration_);
             delete manager;
 
             // Respond to scheduler;
@@ -233,8 +233,11 @@ void* DeterministicScheduler::LockManagerThread(void* arg) {
       // We have received a finished transaction back, release the lock
       scheduler->lock_manager_->Release(done_txn);
       executing_txns--;
-
-      if(done_txn->writers_size() == 0 || rand() % done_txn->writers_size() == 0)
+      #ifdef YCSB10
+        if(done_txn->writers_size() == 0 || rand() % done_txn->readers_size() == 0)
+      #else
+        if(done_txn->writers_size() == 0 || rand() % done_txn->writers_size() == 0)
+      #endif
         txns++;       
 
       delete done_txn;
