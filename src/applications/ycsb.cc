@@ -68,18 +68,20 @@ TxnProto* YCSB::ZipfianTxn(int64 txn_id) {
   for(int i=0; i< kRWSetSize; i++){
     update[i] = false;
   }
-  uint writeKey = kRWSetSize / 2;
-  while(writeKey > 0){
-    int w = rand() % kRWSetSize;
-    if(!update[w]){
-      update[w] = true;
-      writeKey--;
+  if (rand() % 100 >= 80) { 
+    uint writeKey = kRWSetSize / 2;
+    while(writeKey > 0){
+      int w = rand() % kRWSetSize;
+      if(!update[w]){
+        update[w] = true;
+        writeKey--;
+      }
     }
   }
   // update[0] = true;
   for (int i = 0; i < kRWSetSize; ++i) {
     if (update[i]) {
-      txn->add_write_set(IntToString(key[i]));
+      txn->add_read_write_set(IntToString(key[i]));
     } else {
       txn->add_read_set(IntToString(key[i]));
     }
@@ -162,16 +164,16 @@ int YCSB::Execute(TxnProto* txn, StorageManager* storage, Configuration* config)
   // Read all elements of 'txn->read_set()', add one to each, write them all
   // back out.
   #ifdef YCSB10
-  for (int i = 0; i < kRWSetSize / 2; i++) {
-    Value* val;
-    
+  for (int i = 0; i < txn->read_set_size(); i++) {    
     if (config->LookupPartition(txn->read_set(i)) == config->this_node_id)
-      val = storage->ReadObject(txn->read_set(i));
-    
-    if (config->LookupPartition(txn->write_set(i)) == config->this_node_id) {
-      // val = storage->ReadObject(txn->write_set(i));
-      // *val = IntToString(StringToInt(*val) + 1);
-      storage->PutObject(txn->write_set(i), val);
+      storage->ReadObject(txn->read_set(i));
+  }
+  for (int i = 0; i < txn->read_write_set_size(); i++) {
+    Value* val;
+    if (config->LookupPartition(txn->read_write_set(i)) == config->this_node_id) {
+      val = storage->ReadObject(txn->read_write_set(i));
+      *val = IntToString(StringToInt(*val) + 1);
+      // storage->PutObject(txn->write_set(i), val);
     }
   #else
   for (int i = 0; i < kRWSetSize; i++) {

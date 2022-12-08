@@ -30,7 +30,7 @@ int Configuration::LookupPartition(const Key& key) const {
     return OffsetStringToInt(key, 1) % static_cast<int>(all_nodes.size());
   else
   #ifdef YCSB10
-    return StringToInt(key) / YCSB::kDBSize;
+    return StringToInt(key) % static_cast<int>(all_nodes.size());
   #else
     return StringToInt(key) % static_cast<int>(all_nodes.size());
   #endif

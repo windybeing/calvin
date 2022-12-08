@@ -3,3 +3,6 @@ obj/
 bin/
 zookeeper_log
 .vscode/
+*.txt
+deploy-run.conf
+portfile
