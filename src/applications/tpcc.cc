@@ -36,6 +36,10 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
   txn->set_isolation_level(TxnProto::SERIALIZABLE);
   txn->set_status(TxnProto::NEW);
   txn->set_multipartition(false);
+  txn->set_lock_end_timestamp(0);
+  txn->set_lock_start_timestamp(0);
+  txn->set_queue_out_timestamp(0);
+  txn->set_ready_to_exec_timestamp(0);
 
   // Parse out the arguments to the transaction
   TPCCArgs* txn_args = new TPCCArgs();

@@ -12,7 +12,7 @@
 #include "proto/txn.pb.h"
 #include "common/configuration.h"
 
-#define WAREHOUSES_PER_NODE 8
+#define WAREHOUSES_PER_NODE 7
 #define DISTRICTS_PER_WAREHOUSE 10
 #define DISTRICTS_PER_NODE (WAREHOUSES_PER_NODE * DISTRICTS_PER_WAREHOUSE)
 #define CUSTOMERS_PER_DISTRICT 3000

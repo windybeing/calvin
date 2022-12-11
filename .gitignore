@@ -5,4 +5,4 @@ zookeeper_log
 .vscode/
 *.txt
 deploy-run.conf
-portfile
+src/deployment/portfile

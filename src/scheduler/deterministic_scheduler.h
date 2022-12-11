@@ -14,6 +14,7 @@
 #include <pthread.h>
 
 #include <deque>
+#include <mutex>
 
 #include "scheduler/scheduler.h"
 #include "common/utils.h"
@@ -88,6 +89,6 @@ class DeterministicScheduler : public Scheduler {
   AtomicQueue<TxnProto*>* done_queue;
   
   AtomicQueue<MessageProto>* message_queues[NUM_THREADS];
-  
+  std::mutex log_mu;
 };
 #endif  // _DB_SCHEDULER_DETERMINISTIC_SCHEDULER_H_

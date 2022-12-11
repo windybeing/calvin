@@ -53,5 +53,9 @@ message TxnProto {
   // Node ids of nodes that participate as readers and writers in this txn.
   repeated int32 readers = 40;
   repeated int32 writers = 41;
+  required int64 lock_end_timestamp = 42;
+  required int64 queue_out_timestamp = 43;
+  required int64 ready_to_exec_timestamp = 44;
+  required int64 lock_start_timestamp = 45;
 }
 

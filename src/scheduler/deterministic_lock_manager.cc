@@ -7,6 +7,7 @@
 #include "scheduler/deterministic_lock_manager.h"
 
 #include <vector>
+#include <chrono>
 
 #include "proto/txn.pb.h"
 
@@ -89,8 +90,10 @@ int DeterministicLockManager::Lock(TxnProto* txn) {
   // Record and return the number of locks that the txn is blocked on.
   if (not_acquired > 0)
     txn_waits_[txn] = not_acquired;
-  else
+  else {
     ready_txns_->push_back(txn);
+    txn->set_lock_end_timestamp(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+  }
   return not_acquired;
 }
 
@@ -168,6 +171,7 @@ void DeterministicLockManager::Release(const Key& key, TxnProto* txn) {
           // The txn that just acquired the released lock is no longer waiting
           // on any lock requests.
           ready_txns_->push_back(new_owners[j]);
+          new_owners[j]->set_lock_end_timestamp(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
           txn_waits_.erase(new_owners[j]);
         }
       }
