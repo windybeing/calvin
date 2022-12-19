@@ -53,6 +53,10 @@ TxnProto* YCSB::ZipfianTxn(int64 txn_id) {
   TxnProto* txn = new TxnProto();
   txn->set_txn_id(txn_id);
   txn->set_txn_type(MICROTXN_SP);
+  txn->set_lock_end_timestamp(0);
+  txn->set_lock_start_timestamp(0);
+  txn->set_queue_out_timestamp(0);
+  txn->set_ready_to_exec_timestamp(0);
   int key[kRWSetSize];
   bool update[kRWSetSize];
   set<int> keys;
