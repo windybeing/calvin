@@ -49,7 +49,7 @@ TxnProto* YCSB::InitializeTxn() {
   return txn;
 }
 
-TxnProto* YCSB::ZipfianTxn(int64 txn_id) {
+TxnProto* YCSB::ZipfianTxn(int64 txn_id, Configuration* conf) {
   TxnProto* txn = new TxnProto();
   txn->set_txn_id(txn_id);
   txn->set_txn_type(MICROTXN_SP);
@@ -57,6 +57,8 @@ TxnProto* YCSB::ZipfianTxn(int64 txn_id) {
   txn->set_lock_start_timestamp(0);
   txn->set_queue_out_timestamp(0);
   txn->set_ready_to_exec_timestamp(0);
+  txn->set_node_id(conf->this_node_id);
+  txn->set_local_serialization(0);
   int key[kRWSetSize];
   bool update[kRWSetSize];
   set<int> keys;

@@ -8,7 +8,7 @@
 
 #include <set>
 #include <string>
-
+#include <chrono>
 #include "backend/storage.h"
 #include "backend/storage_manager.h"
 #include "common/configuration.h"
@@ -40,6 +40,8 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
   txn->set_lock_start_timestamp(0);
   txn->set_queue_out_timestamp(0);
   txn->set_ready_to_exec_timestamp(0);
+  txn->set_node_id(config->this_node_id);
+  txn->set_local_serialization(0);
 
   // Parse out the arguments to the transaction
   TPCCArgs* txn_args = new TPCCArgs();
@@ -447,24 +449,32 @@ int TPCC::Execute(TxnProto* txn, StorageManager* storage, Configuration* config)
 // transaction.  This follows the TPC-C standard.
 int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
   // First, we retrieve the warehouse from storage
+  int64_t total_time = 0;
   Value* warehouse_value;
   Warehouse* warehouse = new Warehouse();
+  auto startTime = std::chrono::steady_clock::now();
   warehouse_value = storage->ReadObject(txn->read_set(0));
   assert(warehouse->ParseFromString(*warehouse_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   // Next, we retrieve the district
   District* district = new District();
+  startTime = std::chrono::steady_clock::now();
   Value* district_value = storage->ReadObject(txn->read_write_set(0));
   assert(district->ParseFromString(*district_value));
   // Increment the district's next order ID and put to datastore
   district->set_next_order_id(district->next_order_id() + 1);
   assert(district->SerializeToString(district_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   // Not necessary since storage already has a pointer to district_value.
   //   storage->PutObject(district->id(), district_value);
 
   // Retrieve the customer we are looking for
   Value* customer_value;
   Customer* customer = new Customer();
+  startTime = std::chrono::steady_clock::now();
   customer_value = storage->ReadObject(txn->read_set(1));
   assert(customer->ParseFromString(*customer_value));
 
@@ -489,16 +499,20 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
   order->set_carrier_id(-1);
   order->set_order_line_count(order_line_count);
   order->set_all_items_local(txn->multipartition());
-
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   // We initialize the order line amount total to 0
   int order_line_amount_total = 0;
 
   for (int i = 0; i < order_line_count; i++) {
     // For each order line we parse out the three args
 
+    startTime = std::chrono::steady_clock::now();
     string stock_key = txn->read_write_set(i + 1);
     string supply_warehouse_key = stock_key.substr(0, stock_key.find("s"));
     int quantity = tpcc_args->quantities(i);
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
     // Find the item key within the stock key
     size_t item_idx = stock_key.find("i");
@@ -513,6 +527,7 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
 
     // Next, we create a new order line object with std attributes
     OrderLine* order_line = new OrderLine();
+    startTime = std::chrono::steady_clock::now();
     Key order_line_key = txn->write_set(i);
     order_line->set_order_id(order_line_key);
 
@@ -524,9 +539,11 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
     order_line->set_supply_warehouse_id(supply_warehouse_key);
     order_line->set_quantity(quantity);
     order_line->set_delivery_date(system_time);
-
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
     // Next, we get the correct stock from the data store
     Stock* stock = new Stock();
+    startTime = std::chrono::steady_clock::now();
     Value* stock_value = storage->ReadObject(stock_key);
     assert(stock->ParseFromString(*stock_value));
 
@@ -544,6 +561,8 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
 
     // Put the stock back into the database
     assert(stock->SerializeToString(stock_value));
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
     // Not necessary since storage already has a ptr to stock_value.
     //   storage->PutObject(stock_key, stock_value);
     delete stock;
@@ -554,9 +573,12 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
 
     // Finally, we write the order line to storage
     Value* order_line_value = new Value();
+    startTime = std::chrono::steady_clock::now();
     assert(order_line->SerializeToString(order_line_value));
     storage->PutObject(order_line_key, order_line_value);
     //order->add_order_line_ptr(reinterpret_cast<uint64>(order_line_value));
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
     pthread_mutex_lock(&mutex_for_item);
     if (storage->configuration_->this_node_id == storage->configuration_->LookupPartition(txn->read_set(0)))
@@ -566,23 +588,27 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
     delete order_line;
     delete item;
   }
-
+  startTime = std::chrono::steady_clock::now();
   // We create a new NewOrder object
   Key new_order_key = txn->write_set(order_line_count);
   NewOrder* new_order = new NewOrder();
   new_order->set_id(new_order_key);
   new_order->set_warehouse_id(warehouse->id());
   new_order->set_district_id(district->id());
-
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   // Serialize it and put it in the datastore
   Value* new_order_value = new Value();
-  assert(new_order->SerializeToString(new_order_value));
-  storage->PutObject(new_order_key, new_order_value);
 
   // Serialize order and put it in the datastore
   Value* order_value = new Value();
+  startTime = std::chrono::steady_clock::now();
   assert(order->SerializeToString(order_value));
+  assert(new_order->SerializeToString(new_order_value));
+  storage->PutObject(new_order_key, new_order_value);
   storage->PutObject(order_key, order_value);
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   if(storage->configuration_->this_node_id == storage->configuration_->LookupPartition(txn->read_set(0))) {
     pthread_mutex_lock(&mutex_);
@@ -607,6 +633,7 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
   delete order;
   delete new_order;
   delete tpcc_args;
+  txn->set_local_serialization(total_time);
   return SUCCESS;
 }
 
@@ -614,7 +641,9 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
 // payment transaction.  This follows the TPC-C standard.
 int TPCC::PaymentTransaction(TxnProto* txn, StorageManager* storage) const {
   // First, we parse out the transaction args from the TPCC proto
+  int64_t total_time = 0;
   TPCCArgs* tpcc_args = new TPCCArgs();
+  auto startTime = std::chrono::steady_clock::now();
   tpcc_args->ParseFromString(txn->arg());
   int amount = tpcc_args->amount();
 
@@ -665,7 +694,10 @@ int TPCC::PaymentTransaction(TxnProto* txn, StorageManager* storage) const {
   // Deserialize the district object
   Key district_key = txn->read_write_set(1);
   Value* district_value = storage->ReadObject(district_key);
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   District* district = new District();
+  startTime = std::chrono::steady_clock::now();
   assert(district->ParseFromString(*district_value));
 
   // Next, we update the values of the district and write it out
@@ -673,9 +705,12 @@ int TPCC::PaymentTransaction(TxnProto* txn, StorageManager* storage) const {
   assert(district->SerializeToString(district_value));
   // Not necessary since storage already has a pointer to district_value.
   //   storage->PutObject(district_key, district_value);
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   // We deserialize the customer
   Customer* customer = new Customer();
+  startTime = std::chrono::steady_clock::now();
   assert(customer->ParseFromString(*customer_value));
 
   // Next, we update the customer's balance, payment and payment count
@@ -698,34 +733,41 @@ int TPCC::PaymentTransaction(TxnProto* txn, StorageManager* storage) const {
 
   // We write the customer to disk
   assert(customer->SerializeToString(customer_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   // Not necessary since storage already has a pointer to customer_value.
   //   storage->PutObject(customer_key, customer_value);
 
   // Finally, we create a history object and update the data
   History* history = new History();
+  startTime = std::chrono::steady_clock::now();
   history->set_customer_id(customer_key);
   history->set_customer_warehouse_id(customer->warehouse_id());
   history->set_customer_district_id(customer->district_id());
   history->set_warehouse_id(warehouse_key);
   history->set_district_id(district_key);
-
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   // Create the data for the history object
   char history_data[100];
   snprintf(history_data, sizeof(history_data), "%s    %s",
              warehouse->name().c_str(), district->name().c_str());
+  startTime = std::chrono::steady_clock::now();
   history->set_data(history_data);
 
   // Write the history object to disk
   Value* history_value = new Value();
   assert(history->SerializeToString(history_value));
   storage->PutObject(txn->write_set(0), history_value);
-
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   // Successfully completed transaction
   delete customer;
   delete history;
   delete district;
   delete warehouse;
   delete tpcc_args;
+  txn->set_local_serialization(total_time);
   return SUCCESS;
 }
 

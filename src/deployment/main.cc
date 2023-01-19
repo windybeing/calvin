@@ -47,7 +47,7 @@ class MClient : public Client {
   }
   virtual ~MClient() {}
   virtual void GetTxn(TxnProto** txn, int txn_id) {
-    *txn = ycsb.ZipfianTxn(txn_id);
+    *txn = ycsb.ZipfianTxn(txn_id, config_);
     // if (config_->all_nodes.size() > 1 && rand() % 100 < percent_mp_) {
     //   // Multipartition txn.
     //   int other;

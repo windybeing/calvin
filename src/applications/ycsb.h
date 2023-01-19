@@ -36,7 +36,7 @@ class YCSB : public Application {
   virtual int Execute(TxnProto* txn, StorageManager* storage, Configuration* config) const;
 
   TxnProto* InitializeTxn();
-  TxnProto* ZipfianTxn(int64 txn_id);
+  TxnProto* ZipfianTxn(int64 txn_id, Configuration* config);
   TxnProto* MicroTxnSP(int64 txn_id, int part);
   TxnProto* MicroTxnMP(int64 txn_id, int part1, int part2);
 
