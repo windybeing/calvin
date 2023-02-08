@@ -85,8 +85,9 @@ bool StorageManager::ReadyToExecute() {
 #ifndef YCSB10
     return static_cast<int>(objects_.size()) == txn_->read_set_size() + txn_->read_write_set_size();
 #else
-  bool isWriter = false;
   int cnt = 0;
+#ifndef YCSB10
+  bool isWriter = false;
   for (int i = 0; i < txn_->writers_size(); i++) {
     if (txn_->writers(i) == configuration_->this_node_id)
       isWriter = true;
@@ -94,6 +95,7 @@ bool StorageManager::ReadyToExecute() {
   if (isWriter) {
     return static_cast<int>(objects_.size()) == txn_->read_set_size() + txn_->read_write_set_size();
   }
+#endif
   // std::cout << "object size " << objects_.size() << " read_size " << txn_->read_set_size() + txn_->read_write_set_size() << std::endl;
   for (int i = 0; i < txn_->read_set_size(); ++i) {
     if (configuration_->LookupPartition(txn_->read_set(i)) == configuration_->this_node_id)

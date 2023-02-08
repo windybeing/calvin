@@ -92,20 +92,22 @@ class TClient : public Client {
     // New order txn
    int random_txn_type = rand() % 100;
     // New order txn
-    // if (random_txn_type < 45)  {
-    //   *txn = tpcc.NewTxn(txn_id, TPCC::NEW_ORDER, args_string, config_, percent_mp_);
-    // } else if(random_txn_type < 88) {
-    //   *txn = tpcc.NewTxn(txn_id, TPCC::PAYMENT, args_string, config_, percent_mp_ == 0 ? 0 : 15);
-    // } else if(random_txn_type < 92) {
-    //   *txn = tpcc.NewTxn(txn_id, TPCC::ORDER_STATUS, args_string, config_, 0);
-    //   args.set_multipartition(false);
-    // } else if(random_txn_type < 96){
-    //   *txn = tpcc.NewTxn(txn_id, TPCC::DELIVERY, args_string, config_, 0);
-    //   args.set_multipartition(false);
-    // } else {
-    //   *txn = tpcc.NewTxn(txn_id, TPCC::STOCK_LEVEL, args_string, config_, 0);
-    //   args.set_multipartition(false);
-    // }
+  #ifdef STANDARD_MIX
+    if (random_txn_type < 45)  {
+      *txn = tpcc.NewTxn(txn_id, TPCC::NEW_ORDER, args_string, config_, percent_mp_);
+    } else if(random_txn_type < 88) {
+      *txn = tpcc.NewTxn(txn_id, TPCC::PAYMENT, args_string, config_, percent_mp_ == 0 ? 0 : 15);
+    } else if(random_txn_type < 92) {
+      *txn = tpcc.NewTxn(txn_id, TPCC::ORDER_STATUS, args_string, config_, 0);
+      args.set_multipartition(false);
+    } else if(random_txn_type < 96){
+      *txn = tpcc.NewTxn(txn_id, TPCC::DELIVERY, args_string, config_, 0);
+      args.set_multipartition(false);
+    } else {
+      *txn = tpcc.NewTxn(txn_id, TPCC::STOCK_LEVEL, args_string, config_, 0);
+      args.set_multipartition(false);
+    }
+  #endif
     if (random_txn_type < 50)  {
       *txn = tpcc.NewTxn(txn_id, TPCC::NEW_ORDER, args_string, config_, percent_mp_);
     } else {
@@ -134,7 +136,7 @@ int main(int argc, char** argv) {
     exit(1);
   }
   bool useFetching = false;
-  if (argc > 4 && argv[4][0] == 'f')
+  if (argc > 5 && argv[5][0] == 'f')
     useFetching = true;
   // Catch ^C and kill signals and exit gracefully (for profiling).
   signal(SIGINT, &stop);
@@ -145,8 +147,14 @@ int main(int argc, char** argv) {
 
   // Build connection context and start multiplexer thread running.
   ConnectionMultiplexer multiplexer(&config);
-
+  config.distributed_ratio = StringToDouble(argv[5]);
+#ifdef ENABLE_DISTRIBUTED_TXN
+  zipfianGenerator = new ZipfianGenerator(0, YCSB::kDBSize - 1, StringToDouble(argv[4]));
+  
+  std::cout << "This node id: " << config.this_node_id << " Use distributed txn, distributed ratio: " << config.distributed_ratio << " zipf theta: " << StringToDouble(argv[4]) <<std::endl;
+#else 
   zipfianGenerator = new ZipfianGenerator(0, config.all_nodes.size() * YCSB::kDBSize - 1, StringToDouble(argv[4]));
+#endif
   // Artificial loadgen clients.
   Client* client = (argv[2][0] == 'm') ?
       reinterpret_cast<Client*>(new MClient(&config, atoi(argv[3]))) :

@@ -47,7 +47,8 @@ CXXFLAGS := -g -MD $(PG) -I$(SRCDIR) -I$(OBJDIR) \
             -I$(PROTOB)/src \
             -I$(GTEST)/include \
             -I$(ZOOKPR)/include -I$(ZOOKPR)/generated
-CXXFLAGS += -Wall -Werror -DYCSB10
+# CXXFLAGS += -Wall -Werror -DYCSB10 -DENABLE_DISTRIBUTED_TXN -DLATENCY_LOG
+CXXFLAGS += -Wall -Werror 
 
 LDFLAGS := -lrt -lpthread $(PG) \
            -lprotobuf -L$(PROTOB)/src/.libs \

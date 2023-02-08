@@ -133,7 +133,7 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
       reinterpret_cast<pair<int, DeterministicScheduler*>*>(arg)->second;
 
   unordered_map<string, StorageManager*> active_txns;
-  Percentile<int64_t> execution_latency, serialization_latency, remote_execution_latency;
+  Percentile<int64_t> execution_latency, serialization_latency, remote_execution_latency, synchronization_latency;
   Percentile<int64_t> handle_read_result_latency;
   Percentile<int64_t> init_storage_manager_latency;
   Percentile<int64_t> log_latency;
@@ -157,14 +157,15 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
       if (manager->ReadyToExecute()) {
         // Execute and clean up.
         TxnProto* txn = manager->txn_;
-        txn->set_ready_to_exec_timestamp(std::chrono::duration_cast<std::chrono::microseconds>(execution_latency.start_ts.time_since_epoch()).count());
+        txn->set_ready_to_exec_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(execution_latency.start_ts.time_since_epoch()).count());
         auto execution_start = std::chrono::steady_clock::now();
         scheduler->application_->Execute(txn, manager, scheduler->configuration_);
         int64_t execution_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
           std::chrono::steady_clock::now() - execution_start).count();
         if (txn->node_id() == scheduler->configuration_->this_node_id) {
-          execution_latency.add(execution_duration - txn->local_serialization());
+          execution_latency.add(execution_duration - txn->local_serialization() - txn->synchronization());
           serialization_latency.add(txn->local_serialization());
+          synchronization_latency.add(txn->synchronization());
         } else {
           remote_execution_latency.add(execution_duration);
         }
@@ -186,7 +187,7 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
       if (got_it == true) {
         // Create manager.
         init_storage_manager_latency.start();
-        txn->set_queue_out_timestamp(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+        txn->set_queue_out_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         StorageManager* manager =
             new StorageManager(scheduler->configuration_,
                                scheduler->thread_connections_[thread],
@@ -195,14 +196,15 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
           // Writes occur at this node.
           if (manager->ReadyToExecute()) {
             // No remote reads. Execute and clean up.
-            txn->set_ready_to_exec_timestamp(std::chrono::duration_cast<std::chrono::microseconds>(execution_latency.start_ts.time_since_epoch()).count());
+            txn->set_ready_to_exec_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(execution_latency.start_ts.time_since_epoch()).count());
             auto execution_start = std::chrono::steady_clock::now();
             scheduler->application_->Execute(txn, manager, scheduler->configuration_);
             int64_t execution_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - execution_start).count();
             if (txn->node_id() == scheduler->configuration_->this_node_id) {
-              execution_latency.add(execution_duration - txn->local_serialization());
+              execution_latency.add(execution_duration - txn->local_serialization() - txn->synchronization());
               serialization_latency.add(txn->local_serialization());
+              synchronization_latency.add(txn->synchronization());
             } else {
               remote_execution_latency.add(execution_duration);
             }
@@ -232,6 +234,7 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
       std::cout << "worker 0: init_storage_manager latency: size: " << init_storage_manager_latency.size() << " " << init_storage_manager_latency.sum() << " us (sum) " << init_storage_manager_latency.aver() << " us (aver) " << std::endl;
       // std::cout << "worker 0: log latency: size: " << log_latency.size() << " " << log_latency.sum() << " us (sum) " << log_latency.aver() << " us (aver) " << std::endl;
       std::cout << "worker 0: pop latency: size: " << pop_latency.size() << " " << pop_latency.sum() << " us (sum) " << pop_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "worker 0: synchronization latency: size: " << synchronization_latency.size() << " " << synchronization_latency.sum() << " us (sum) " << synchronization_latency.aver() << " us (aver) " << std::endl;
 #endif
       }
       execution_latency.clear();
@@ -240,6 +243,7 @@ void* DeterministicScheduler::RunWorkerThread(void* arg) {
       handle_read_result_latency.clear();
       init_storage_manager_latency.clear();
       pop_latency.clear();
+      synchronization_latency.clear();
       log_latency.end();
       prev_log_finish_time = std::chrono::steady_clock::now();
     }
@@ -277,16 +281,16 @@ MessageProto* GetBatch(int batch_id, Connection* connection) {
 
 void* DeterministicScheduler::LockManagerThread(void* arg) {
   DeterministicScheduler* scheduler = reinterpret_cast<DeterministicScheduler*>(arg);
-  // Percentile<int64_t> lock_latency;
-  // Percentile<int64_t> wait_queue_out_latency;
-  // Percentile<int64_t> wait_read_result_latency;
-  // Percentile<int64_t> release_latency;
-  // Percentile<int64_t> branch1_latency;
-  // Percentile<int64_t> branch2_latency;
-  // Percentile<int64_t> get_batch_latency;
-  // Percentile<int64_t> grab_batch_latency;
-  // Percentile<int64_t> pop_latency;
-  // Percentile<int64_t> push_latency;
+  Percentile<int64_t> lock_latency;
+  Percentile<int64_t> wait_queue_out_latency;
+  Percentile<int64_t> wait_read_result_latency;
+  Percentile<int64_t> release_latency;
+  Percentile<int64_t> branch1_latency;
+  Percentile<int64_t> branch2_latency;
+  Percentile<int64_t> get_batch_latency;
+  Percentile<int64_t> grab_batch_latency;
+  Percentile<int64_t> pop_latency;
+  Percentile<int64_t> push_latency;
   // Run main loop.
   MessageProto message;
   MessageProto* batch_message = NULL;
@@ -299,46 +303,46 @@ void* DeterministicScheduler::LockManagerThread(void* arg) {
 //int test = 0;
   while (true) {
     TxnProto* done_txn;
-    // pop_latency.start();
+    pop_latency.start();
     bool got_it = scheduler->done_queue->Pop(&done_txn);
-    // pop_latency.end();
+    pop_latency.end();
     if (got_it == true) {
       // We have received a finished transaction back, release the lock
-      // release_latency.start();
-      // branch1_latency.start();
+      release_latency.start();
+      branch1_latency.start();
       scheduler->lock_manager_->Release(done_txn);
-      // release_latency.end();
+      release_latency.end();
       executing_txns--;
       #ifdef YCSB10
-        if(done_txn->writers_size() == 0 || rand() % done_txn->readers_size() == 0)
+        if(rand() % done_txn->readers_size() == 0)
       #else
         if(done_txn->writers_size() == 0 || rand() % done_txn->writers_size() == 0)
       #endif
         txns++;       
-      // wait_queue_out_latency.add(done_txn->queue_out_timestamp() - done_txn->lock_end_timestamp());
-      // wait_read_result_latency.add(done_txn->ready_to_exec_timestamp() - done_txn->queue_out_timestamp());
-      // lock_latency.add(done_txn->lock_end_timestamp() - done_txn->lock_start_timestamp());
+      wait_queue_out_latency.add(done_txn->queue_out_timestamp() - done_txn->lock_end_timestamp());
+      wait_read_result_latency.add(done_txn->ready_to_exec_timestamp() - done_txn->queue_out_timestamp());
+      lock_latency.add(done_txn->lock_end_timestamp() - done_txn->lock_start_timestamp());
       delete done_txn;
-      // branch1_latency.end();
+      branch1_latency.end();
     } else {
-      // branch2_latency.start();
+      branch2_latency.start();
       // Have we run out of txns in our batch? Let's get some new ones.
       if (batch_message == NULL) {
-        // get_batch_latency.start();
+        get_batch_latency.start();
         batch_message = GetBatch(batch_number, scheduler->batch_connection_);
-        // get_batch_latency.end();
+        get_batch_latency.end();
       // Done with current batch, get next.
       } else if (batch_offset >= batch_message->data_size()) {
-        // get_batch_latency.start();
+        get_batch_latency.start();
         batch_offset = 0;
         batch_number++;
         delete batch_message;
         batch_message = GetBatch(batch_number, scheduler->batch_connection_);
-        // get_batch_latency.end();
+        get_batch_latency.end();
 
       // Current batch has remaining txns, grab up to 10.
       } else if (executing_txns + pending_txns < 2000) {
-        // grab_batch_latency.start();
+        grab_batch_latency.start();
 
         for (int i = 0; i < 100; i++) {
           if (batch_offset >= batch_message->data_size()) {
@@ -348,15 +352,15 @@ void* DeterministicScheduler::LockManagerThread(void* arg) {
           TxnProto* txn = new TxnProto();
           txn->ParseFromString(batch_message->data(batch_offset));
           batch_offset++;
-          // txn->set_lock_start_timestamp(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+          txn->set_lock_start_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
           scheduler->lock_manager_->Lock(txn);            
           pending_txns++;
         }
-        // grab_batch_latency.end();
+        grab_batch_latency.end();
       }
-      // branch2_latency.end();
+      branch2_latency.end();
     }
-    // push_latency.start();
+    push_latency.start();
     // Start executing any and all ready transactions to get them off our plate
     while (!scheduler->ready_txns_->empty()) {
       TxnProto* txn = scheduler->ready_txns_->front();
@@ -366,7 +370,7 @@ void* DeterministicScheduler::LockManagerThread(void* arg) {
 
       scheduler->txns_queue->Push(txn);
     }
-    // push_latency.end();
+    push_latency.end();
     // Report throughput.
     if (GetTime() > time + 3) {
       double total_time = GetTime() - time;
@@ -379,30 +383,31 @@ void* DeterministicScheduler::LockManagerThread(void* arg) {
       time = GetTime();
       txns = 0;
       //test ++;
-
-      // {
-      // std::lock_guard<std::mutex> guard(scheduler->log_mu);
-      // std::cout << "lock latency: " << lock_latency.sum() << " us (sum) " << lock_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "release latency: " << release_latency.sum() << " us (sum) " << release_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "get_batch latency: " << get_batch_latency.sum() << " us (sum) " << get_batch_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "grab_batch latency: " << grab_batch_latency.sum() << " us (sum) " << grab_batch_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "pop latency: " << pop_latency.sum() << " us (sum) " << pop_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "branch1 latency: " << branch1_latency.sum() << " us (sum) " << branch1_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "wait_queue_out latency: " << wait_queue_out_latency.sum() << " us (sum) " << wait_queue_out_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "wait_read_result latency: " << wait_read_result_latency.sum() << " us (sum) " << wait_read_result_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "branch2 latency: " << branch2_latency.sum() << " us (sum) " << branch2_latency.aver() << " us (aver) " << std::endl;
-      // std::cout << "push latency: " << push_latency.sum() << " us (sum) " << push_latency.aver() << " us (aver) " << std::endl;
-      // }
-      // lock_latency.clear();
-      // wait_queue_out_latency.clear();
-      // wait_read_result_latency.clear();
-      // release_latency.clear();
-      // branch1_latency.clear();
-      // get_batch_latency.clear();
-      // grab_batch_latency.clear();
-      // pop_latency.clear();
-      // branch2_latency.clear();
-      // push_latency.clear();
+#ifdef LATENCY_LOG
+      {
+      std::lock_guard<std::mutex> guard(scheduler->log_mu);
+      std::cout << "lock latency: " << lock_latency.sum() << " us (sum) " << lock_latency.aver() << " us (aver) " << lock_latency.size() << std::endl;
+      std::cout << "release latency: " << release_latency.sum() << " us (sum) " << release_latency.aver() << " us (aver) " << release_latency.size() << std::endl;
+      std::cout << "get_batch latency: " << get_batch_latency.sum() << " us (sum) " << get_batch_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "grab_batch latency: " << grab_batch_latency.sum() << " us (sum) " << grab_batch_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "pop latency: " << pop_latency.sum() << " us (sum) " << pop_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "branch1 latency: " << branch1_latency.sum() << " us (sum) " << branch1_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "wait_queue_out latency: " << wait_queue_out_latency.sum() << " us (sum) " << wait_queue_out_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "wait_read_result latency: " << wait_read_result_latency.sum() << " us (sum) " << wait_read_result_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "branch2 latency: " << branch2_latency.sum() << " us (sum) " << branch2_latency.aver() << " us (aver) " << std::endl;
+      std::cout << "push latency: " << push_latency.sum() << " us (sum) " << push_latency.aver() << " us (aver) " << std::endl;
+      }
+#endif
+      lock_latency.clear();
+      wait_queue_out_latency.clear();
+      wait_read_result_latency.clear();
+      release_latency.clear();
+      branch1_latency.clear();
+      get_batch_latency.clear();
+      grab_batch_latency.clear();
+      pop_latency.clear();
+      branch2_latency.clear();
+      push_latency.clear();
     }
   }
   return NULL;

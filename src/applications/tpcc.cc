@@ -42,6 +42,7 @@ TxnProto* TPCC::NewTxn(int64 txn_id, int txn_type, string args,
   txn->set_ready_to_exec_timestamp(0);
   txn->set_node_id(config->this_node_id);
   txn->set_local_serialization(0);
+  txn->set_synchronization(0);
 
   // Parse out the arguments to the transaction
   TPCCArgs* txn_args = new TPCCArgs();
@@ -449,7 +450,7 @@ int TPCC::Execute(TxnProto* txn, StorageManager* storage, Configuration* config)
 // transaction.  This follows the TPC-C standard.
 int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
   // First, we retrieve the warehouse from storage
-  int64_t total_time = 0;
+  int64_t total_time = 0, sync_time = 0;
   Value* warehouse_value;
   Warehouse* warehouse = new Warehouse();
   auto startTime = std::chrono::steady_clock::now();
@@ -579,11 +580,13 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
     //order->add_order_line_ptr(reinterpret_cast<uint64>(order_line_value));
     total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
           std::chrono::steady_clock::now() - startTime).count();
-
+    startTime = std::chrono::steady_clock::now();
     pthread_mutex_lock(&mutex_for_item);
     if (storage->configuration_->this_node_id == storage->configuration_->LookupPartition(txn->read_set(0)))
       item_for_order_line[order_line_key] = StringToInt(item_key);
     pthread_mutex_unlock(&mutex_for_item);
+    sync_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
     // Free memory
     delete order_line;
     delete item;
@@ -610,6 +613,7 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
   total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
           std::chrono::steady_clock::now() - startTime).count();
 
+  startTime = std::chrono::steady_clock::now();
   if(storage->configuration_->this_node_id == storage->configuration_->LookupPartition(txn->read_set(0))) {
     pthread_mutex_lock(&mutex_);
     if(latest_order_id_for_customer.count(txn->read_set(1)) == 0)
@@ -626,6 +630,8 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
     pthread_mutex_unlock(&mutex_);
   }
 
+  sync_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   // Successfully completed transaction
   delete warehouse;
   delete district;
@@ -634,6 +640,7 @@ int TPCC::NewOrderTransaction(TxnProto* txn, StorageManager* storage) const {
   delete new_order;
   delete tpcc_args;
   txn->set_local_serialization(total_time);
+  txn->set_synchronization(sync_time);
   return SUCCESS;
 }
 
@@ -773,23 +780,36 @@ int TPCC::PaymentTransaction(TxnProto* txn, StorageManager* storage) const {
 
 
 int TPCC::OrderStatusTransaction(TxnProto* txn, StorageManager* storage) const {
+  int64_t total_time = 0;
   TPCCArgs* tpcc_args = new TPCCArgs();
+  auto startTime = std::chrono::steady_clock::now();
   tpcc_args->ParseFromString(txn->arg());
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   int order_line_count = tpcc_args->order_line_count(0);
 
   Value* warehouse_value;
   Warehouse* warehouse = new Warehouse();
+  startTime = std::chrono::steady_clock::now();
   warehouse_value = storage->ReadObject(txn->read_set(0));
   assert(warehouse->ParseFromString(*warehouse_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   District* district = new District();
+  startTime = std::chrono::steady_clock::now();
   Value* district_value = storage->ReadObject(txn->read_set(1));
   assert(district->ParseFromString(*district_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   Value* customer_value;
   Customer* customer = new Customer();
+  startTime = std::chrono::steady_clock::now();
   customer_value = storage->ReadObject(txn->read_set(2));
   assert(customer->ParseFromString(*customer_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   //  double customer_balance = customer->balance();
   string customer_first = customer->first();
@@ -797,18 +817,24 @@ int TPCC::OrderStatusTransaction(TxnProto* txn, StorageManager* storage) const {
   string customer_last = customer->last();
 
   Order* order = new Order();
+  startTime = std::chrono::steady_clock::now();
   Value* order_value = storage->ReadObject(txn->read_set(3));
   assert(order->ParseFromString(*order_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
   //  int carrier_id = order->carrier_id();
   //  double entry_date = order->entry_date();
 
 
   for(int i = 0; i < order_line_count; i++) {
     OrderLine* order_line = new OrderLine();
+    startTime = std::chrono::steady_clock::now();
     Value* order_line_value = storage->ReadObject(txn->read_set(4+i));
     assert(order_line->ParseFromString(*order_line_value));
     string item_key = order_line->item_id();
     string supply_warehouse_id = order_line->supply_warehouse_id();
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
     //    int quantity = order_line->quantity();
     //    double amount = order_line->amount();
     //    double delivery_date = order_line->delivery_date();
@@ -820,24 +846,34 @@ int TPCC::OrderStatusTransaction(TxnProto* txn, StorageManager* storage) const {
   delete district;
   delete customer;
   delete order;
-
+  txn->set_local_serialization(total_time);
   return SUCCESS;
 }
 
 int TPCC::StockLevelTransaction(TxnProto* txn, StorageManager* storage) const { 
+  int64_t total_time = 0;
   int low_stock = 0;
   TPCCArgs* tpcc_args = new TPCCArgs();
+  auto startTime = std::chrono::steady_clock::now();
   tpcc_args->ParseFromString(txn->arg());
   int threshold = tpcc_args->threshold();
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
  
   Value* warehouse_value;
   Warehouse* warehouse = new Warehouse();
+  startTime = std::chrono::steady_clock::now();
   warehouse_value = storage->ReadObject(txn->read_set(0));
   assert(warehouse->ParseFromString(*warehouse_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   District* district = new District();
+  startTime = std::chrono::steady_clock::now();
   Value* district_value = storage->ReadObject(txn->read_set(1));
   assert(district->ParseFromString(*district_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   int index = 0;
 
@@ -846,13 +882,19 @@ int TPCC::StockLevelTransaction(TxnProto* txn, StorageManager* storage) const {
     OrderLine* order_line = new OrderLine();
     Value* order_line_value = storage->ReadObject(txn->read_set(2+index));
     index ++;
+    startTime = std::chrono::steady_clock::now();
     assert(order_line->ParseFromString(*order_line_value));
     string item_key = order_line->item_id();
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
     Stock* stock = new Stock();
+    startTime = std::chrono::steady_clock::now();
     Value* stock_value = storage->ReadObject(txn->read_set(2+index));
     index ++;
     assert(stock->ParseFromString(*stock_value));
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
     if(stock->quantity() < threshold) {
       low_stock ++;
     }
@@ -863,17 +905,25 @@ int TPCC::StockLevelTransaction(TxnProto* txn, StorageManager* storage) const {
  
   delete warehouse;
   delete district;
+    txn->set_local_serialization(total_time);
   return SUCCESS;
 }
 
-int TPCC::DeliveryTransaction(TxnProto* txn, StorageManager* storage) const {      
+int TPCC::DeliveryTransaction(TxnProto* txn, StorageManager* storage) const {   
+  int64_t total_time = 0;   
   TPCCArgs* tpcc_args = new TPCCArgs();
+  auto startTime = std::chrono::steady_clock::now();
   tpcc_args->ParseFromString(txn->arg());
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   Value* warehouse_value;
   Warehouse* warehouse = new Warehouse();
+  startTime = std::chrono::steady_clock::now();
   warehouse_value = storage->ReadObject(txn->read_set(0));
   assert(warehouse->ParseFromString(*warehouse_value));
+  total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
 
   if(txn->read_set_size() == 1) {
     delete warehouse; 
@@ -886,16 +936,22 @@ int TPCC::DeliveryTransaction(TxnProto* txn, StorageManager* storage) const {
   int line_count_index = 0;
   for(int i = 1; i <= delivery_district_number; i++) {
     District* district = new District();
+    startTime = std::chrono::steady_clock::now();
     Value* district_value = storage->ReadObject(txn->read_set(i));
     assert(district->ParseFromString(*district_value));
     
     storage->DeleteObject(txn->read_write_set(read_write_index));
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
     read_write_index ++;
 
     Order* order = new Order();
+    startTime = std::chrono::steady_clock::now();
     Value* order_value = storage->ReadObject(txn->read_write_set(read_write_index));
     read_write_index ++;
     assert(order->ParseFromString(*order_value));
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
     char customer_key[128];
     snprintf(customer_key, sizeof(customer_key),
              "%s", order->customer_id().c_str());
@@ -908,10 +964,13 @@ int TPCC::DeliveryTransaction(TxnProto* txn, StorageManager* storage) const {
 
     for(int j = 0; j < ol_number; j++) {
       OrderLine* order_line = new OrderLine();
+      startTime = std::chrono::steady_clock::now();
       Value* order_line_value = storage->ReadObject(txn->read_write_set(read_write_index));
       read_write_index ++;
       assert(order_line->ParseFromString(*order_line_value));
       order_line->set_delivery_date(GetTime());
+      total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
       total_amount = total_amount + order_line->amount();
       
       delete order_line;
@@ -919,11 +978,14 @@ int TPCC::DeliveryTransaction(TxnProto* txn, StorageManager* storage) const {
     
 
     Customer* customer = new Customer();
+    startTime = std::chrono::steady_clock::now();
     Value* customer_value = storage->ReadObject(txn->read_write_set(read_write_index));
     read_write_index ++;
     assert(customer->ParseFromString(*customer_value));
     customer->set_balance(customer->balance() + total_amount);
     customer->set_delivery_count(customer->delivery_count() + 1);  
+    total_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
    
     delete district;
     delete order;
@@ -932,6 +994,7 @@ int TPCC::DeliveryTransaction(TxnProto* txn, StorageManager* storage) const {
   }
 
   delete warehouse;   
+  txn->set_local_serialization(total_time);
   return SUCCESS;
 }
 

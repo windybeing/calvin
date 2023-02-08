@@ -86,6 +86,7 @@ class Configuration {
   // Tracks the set of current active nodes in the system.
   map<int, Node*> all_nodes;
 
+  double distributed_ratio = 0.1;
  private:
   // TODO(alex): Comments.
   void ProcessConfigLine(char key[], char value[]);

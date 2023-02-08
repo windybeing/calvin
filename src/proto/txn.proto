@@ -59,5 +59,6 @@ message TxnProto {
   required int64 lock_start_timestamp = 45;
   required int64 node_id = 46;
   required int64 local_serialization = 47;
+  required int64 synchronization = 48;
 }
 

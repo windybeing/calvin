@@ -59,6 +59,7 @@ TxnProto* YCSB::ZipfianTxn(int64 txn_id, Configuration* conf) {
   txn->set_ready_to_exec_timestamp(0);
   txn->set_node_id(conf->this_node_id);
   txn->set_local_serialization(0);
+  txn->set_synchronization(0);
   int key[kRWSetSize];
   bool update[kRWSetSize];
   set<int> keys;
@@ -66,6 +67,22 @@ TxnProto* YCSB::ZipfianTxn(int64 txn_id, Configuration* conf) {
     int k;
     do {
       k = zipfianGenerator->nextValue();
+#ifdef ENABLE_DISTRIBUTED_TXN
+      bool distributed = (double(rand() % 100) / 100) < conf->distributed_ratio;
+      int node;
+      if (distributed && i == 0) {
+        node = rand() % conf->all_nodes.size();
+        if (node >= conf->this_node_id) {
+          ++node;
+        }
+      } else {
+        node = conf->this_node_id;
+      }
+      k = node + conf->all_nodes.size() * k;
+      if (!distributed || i != 0) {
+        assert(conf->LookupPartition(IntToString(k)) == conf->this_node_id);
+      }
+#endif
       keys.insert(k);
     } while (keys.size() != (size_t)i + 1);
     key[i] = k;
